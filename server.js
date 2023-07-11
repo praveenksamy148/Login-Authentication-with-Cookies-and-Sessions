@@ -5,6 +5,7 @@ const MongoDBSession = require('connect-mongodb-session')(session);
 const mongoose = require("mongoose"); 
 const app = express(); 
 const path = require("path")
+const Cookies = require("js-cookie")
 
 const UserModel = require('./models/User'); 
 const mongoURI = "mongodb://localhost:27017/session";
@@ -27,7 +28,7 @@ app.use(express.urlencoded({extended: true}));
 app.use(express.static(path.join(__dirname, "public")));
 app.set('views', path.join(__dirname, 'views'));
 
-
+Cookies.set("admin", "true")
 
 app.use(session({
     secret: 'key that will sign the cookie', 
@@ -81,12 +82,15 @@ app.post("/login", async(req,res) =>{
     else if (user.role != "admin"){
         req.session.isAuth = true; 
         console.log("yur"); 
+        Cookies.set("isAdmin", "false", {expires :2})
         return res.redirect('/dashboard'); 
     }
     else if(user.role === "admin"){
         req.session.isAuth = true; 
         req.session.isAdminAuth = true; 
-        console.log(isAdminAuth); 
+        // console.log(isAdminAuth); 
+        Cookies.set("isAdmin", "true")
+        // Cookies.get('isAdmin')
        return res.redirect('/adminDash'); 
     }
 }); 
