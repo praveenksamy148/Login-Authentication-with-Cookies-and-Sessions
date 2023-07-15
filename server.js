@@ -5,9 +5,10 @@ const MongoDBSession = require('connect-mongodb-session')(session);
 const mongoose = require("mongoose"); 
 const app = express(); 
 const path = require("path")
-const Cookies = require("js-cookie")
+const cookieParser = require('cookie-parser')
 
 const UserModel = require('./models/User'); 
+const AdminModel = require('./models/Admin'); 
 const mongoURI = "mongodb://localhost:27017/session";
 
 mongoose.connect(mongoURI, {
@@ -25,10 +26,11 @@ const store = new MongoDBSession({
 
 app.set("view engine", "ejs"); 
 app.use(express.urlencoded({extended: true})); 
+app.use(cookieParser())
 app.use(express.static(path.join(__dirname, "public")));
 app.set('views', path.join(__dirname, 'views'));
 
-Cookies.set("admin", "true")
+// Cookies.set("admin", "true")
 
 app.use(session({
     secret: 'key that will sign the cookie', 
@@ -56,15 +58,15 @@ const isAdminAuth = (req, res, next) => {
 
 app.get("/", (req, res) => {
     // req.session.isAuth = true; 
-    // console.log(req.session)
-    // res.send("Hello Sessions"); 
     res.render("landing"); 
+    console.log("Cookies: ", req.cookies); 
 
 }); 
 
 app.get("/login", (req,res) =>{
     res.render("login"); 
 }); 
+
 
 app.post("/login", async(req,res) =>{
     const {email, password} = req.body;
@@ -79,21 +81,41 @@ app.post("/login", async(req,res) =>{
     if(!matched){
         return res.redirect('/login'); 
     }
-    else if (user.role != "admin"){
-        req.session.isAuth = true; 
-        console.log("yur"); 
-        Cookies.set("isAdmin", "false", {expires :2})
+    else{
+        req.session.isAuth = true;  
+        // Cookies.set("isAdmin", "false", {expires :2})
         return res.redirect('/dashboard'); 
     }
-    else if(user.role === "admin"){
-        req.session.isAuth = true; 
+   
+}); 
+
+
+//Admin Login 
+
+app.get("/loginAdmin", (req, res) =>{
+    res.render("loginAdmin"); 
+}); 
+
+app.post("/loginAdmin", async (req, res) =>{
+    const {email, password, role} = req.body; 
+    const admin = await AdminModel.findOne({email}); 
+    if(!admin){
+        console.log("here"); 
+        return res.redirect('/loginAdmin'); 
+    }
+    const matched = await bcrypt.compare(password, admin.password); 
+    const roleMatch = await bcrypt.compare(role, admin.role); 
+
+    if(!matched){
+        console.log("aqui"); 
+        return res.redirect('/loginAdmin'); 
+    } else{
         req.session.isAdminAuth = true; 
-        // console.log(isAdminAuth); 
-        Cookies.set("isAdmin", "true")
-        // Cookies.get('isAdmin')
-       return res.redirect('/adminDash'); 
+        req.session.isAuth = true; 
+        return res.redirect('/adminDash'); 
     }
 }); 
+
 
 app.get("/register", (req,res) => {
     res.render("register")
@@ -110,19 +132,34 @@ app.post("/register", async (req,res) =>{
     } 
     
     const hashPassword = await bcrypt.hash(password, 12); 
-    user = new UserModel({
-        username, 
-        email, 
-        password : hashPassword, 
-        role
-    }); 
+    if(role === "admin"){
+        admin = new AdminModel({
+            username, 
+            email, 
+            password: hashPassword, 
+            role
+        }); 
+        await admin.save(); 
+        res.redirect("/loginAdmin"); 
+    }
+    else {
+        user = new UserModel({
+            username, 
+            email, 
+            password : hashPassword, 
+            role
+        }); 
+    
+        await user.save(); 
+        res.redirect("/login"); 
+    }
+    
 
-    await user.save(); 
-    res.redirect("/login"); 
 }); 
 
 app.get("/adminDash", isAuth, isAdminAuth, (req, res) => {
     res.render("adminDash")
+    // console.log("Cookies: ", req.cookies); 
 })
 
 
